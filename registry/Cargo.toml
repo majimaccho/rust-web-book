@@ -1,0 +1,12 @@
+[package]
+name = "registry"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+adapter.workspace = true
+kernel.workspace = true

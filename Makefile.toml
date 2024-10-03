@@ -27,7 +27,7 @@ JAEGER_PORT = 6831
 [tasks.set-env-local.env]
 DATABASE_HOST = "localhost"
 DATABASE_PORT = "${DATABASE_PORT_OUTER}"
-DATABASE_URL = "postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?user=${DATABASE_USERNAME}&password=${DATABASE_PASSWORD}"
+DATABASE_URL = "postgres://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}"
 REDIS_HOST = "localhost"
 REDIS_PORT = "${REDIS_PORT_OUTER}"
 JAEGER_HOST = "localhost"
@@ -128,6 +128,7 @@ install_crate = { crate_name = "sqlx-cli", binary = "sqlx", test_arg = "--help",
 script = '''
 #!/bin/bash
 until sqlx migrate run --source adapter/migrations; do
+    echo ${DATABASE_URL}
     sleep 1
 done
 '''
