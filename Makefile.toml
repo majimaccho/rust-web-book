@@ -139,6 +139,17 @@ install_crate = { crate_name = "sqlx-cli", binary = "sqlx", test_arg = "--help",
 command = "sqlx"
 args = ["${@}", "--source", "adapter/migrations"]
 
+[tasks.sqlx-prepare]
+extend = "set-env-local"
+command = "cargo"
+install_crate = { crate_name = "sqlx-cli", binary = "sqlx", test_arg = "--help", version = "0.7.3" }
+args = [
+    "sqlx",
+    "prepare",
+    "--database-url",
+    "${DATABASE_URL}",
+]
+
 [tasks.psql]
 extend = "set-env-local"
 command = "docker"
