@@ -15,15 +15,14 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-
 #[tokio::main]
-async fn main() -> Result<()>{
+async fn main() -> Result<()> {
     init_logger()?;
     bootstrap().await
 }
 
 fn init_logger() -> Result<()> {
-    let log_level = match which(){
+    let log_level = match which() {
         Environment::Development => "debug",
         Environment::Production => "info",
     };
@@ -46,7 +45,7 @@ fn init_logger() -> Result<()> {
 async fn bootstrap() -> Result<()> {
     let app_config = AppConfig::new()?;
     let pool = connect_database_with(&app_config.database);
-    
+
     let registry = AppRegistry::new(pool);
 
     let app = Router::new()
@@ -58,12 +57,12 @@ async fn bootstrap() -> Result<()> {
                 .on_request(DefaultOnRequest::new())
                 .on_response(
                     DefaultOnResponse::new()
-                    .level(Level::INFO)
-                    .latency_unit(LatencyUnit::Millis),
-                )
+                        .level(Level::INFO)
+                        .latency_unit(LatencyUnit::Millis),
+                ),
         )
         .with_state(registry);
-        
+
     let addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 8080);
     let listener = TcpListener::bind(&addr).await?;
 

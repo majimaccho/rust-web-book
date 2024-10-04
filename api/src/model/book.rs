@@ -1,5 +1,12 @@
-use axum::{extract::{Path, State}, http::StatusCode, Json};
-use kernel::{id::BookId, model::book::{event::CreateBook, Book}};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
+use kernel::{
+    id::BookId,
+    model::book::{event::CreateBook, Book},
+};
 use registry::AppRegistry;
 use serde::{Deserialize, Serialize};
 use shared::error::AppError;
@@ -15,14 +22,24 @@ pub struct CreateBookRequest {
 
 impl From<CreateBookRequest> for CreateBook {
     fn from(value: CreateBookRequest) -> Self {
-        let CreateBookRequest { title, author, isbn, description } = value;
+        let CreateBookRequest {
+            title,
+            author,
+            isbn,
+            description,
+        } = value;
 
-        Self { title, author, isbn, description }
+        Self {
+            title,
+            author,
+            isbn,
+            description,
+        }
     }
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all= "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct BookResponse {
     pub id: BookId,
     pub title: String,
@@ -33,8 +50,20 @@ pub struct BookResponse {
 
 impl From<Book> for BookResponse {
     fn from(value: Book) -> Self {
-        let Book { id, title, author, isbn, description } = value;
-        Self { id, title, author, isbn, description }
+        let Book {
+            id,
+            title,
+            author,
+            isbn,
+            description,
+        } = value;
+        Self {
+            id,
+            title,
+            author,
+            isbn,
+            description,
+        }
     }
 }
 
@@ -50,7 +79,7 @@ pub async fn register_book(
         .map_err(AppError::from)
 }
 
-pub  async  fn show_book_list(
+pub async fn show_book_list(
     State(registry): State<AppRegistry>,
 ) -> Result<Json<Vec<BookResponse>>, AppError> {
     registry
@@ -71,8 +100,10 @@ pub async fn show_book(
         .find_by_id(book_id)
         .await
         .and_then(|bc| match bc {
-            Some(bc)=> Ok(Json(bc.into())),
-            None => Err(AppError::EntityNotFound("The specific book was not found".into())),
+            Some(bc) => Ok(Json(bc.into())),
+            None => Err(AppError::EntityNotFound(
+                "The specific book was not found".into(),
+            )),
         })
         .map_err(AppError::from)
 }

@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use shared::error::AppResult;
 
-use crate::{id::BookId, model::book::{event::CreateBook, Book}};
+use crate::{
+    id::BookId,
+    model::book::{event::CreateBook, Book},
+};
 
 #[async_trait]
 pub trait BookRepository: Send + Sync {

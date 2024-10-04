@@ -4,17 +4,7 @@ use std::str::FromStr;
 
 macro_rules! define_id {
     ($id_type: ident) => {
-        #[derive(
-            Debug,
-            Clone,
-            Copy,
-            PartialEq,
-            Eq,
-            Hash,
-            Deserialize,
-            Serialize, 
-            sqlx::Type,
-        )]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, sqlx::Type)]
         #[serde(into = "String")]
         #[sqlx(transparent)]
         pub struct $id_type(uuid::Uuid);
@@ -28,7 +18,7 @@ macro_rules! define_id {
                 self.0
             }
         }
-        
+
         impl Default for $id_type {
             fn default() -> Self {
                 Self::new()
@@ -49,10 +39,7 @@ macro_rules! define_id {
         }
 
         impl std::fmt::Display for $id_type {
-            fn fmt(
-                &self,
-                f: &mut std::fmt::Formatter<'_>,
-            ) -> std::fmt::Result {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(
                     f,
                     "{}",
@@ -62,9 +49,9 @@ macro_rules! define_id {
                 )
             }
         }
-        
+
         impl From<$id_type> for String {
-            fn from(id: $id_type) -> Self{
+            fn from(id: $id_type) -> Self {
                 id.to_string()
             }
         }

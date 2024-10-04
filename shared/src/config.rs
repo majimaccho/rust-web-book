@@ -14,14 +14,19 @@ impl AppConfig {
             database: std::env::var("DATABASE_NAME")?,
         };
 
-        Ok(Self{ database })
+        Ok(Self { database })
     }
 }
 
-pub struct  DatabaseConfig{
+pub struct DatabaseConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
     pub password: String,
     pub database: String,
+}
+
+pub struct RedisConfig {
+    pub host: String,
+    pub port: u16,
 }

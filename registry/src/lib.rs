@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use adapter::{database::ConnectionPool, repository::{book::BookRepositoryImpl, health::HealthCheckRepositoryImpl}};
+use adapter::{
+    database::ConnectionPool,
+    repository::{book::BookRepositoryImpl, health::HealthCheckRepositoryImpl},
+};
 use kernel::repository::{book::BookRepository, health::HealthCheckRepository};
 
 #[derive(Clone)]

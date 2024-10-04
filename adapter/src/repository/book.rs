@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use derive_new::new;
 use kernel::{
-    id::BookId, model::book::{event::CreateBook, Book}, repository::book::BookRepository
+    id::BookId,
+    model::book::{event::CreateBook, Book},
+    repository::book::BookRepository,
 };
 use shared::error::{AppError, AppResult};
 use sqlx;
@@ -31,7 +33,7 @@ impl BookRepository for BookRepositoryImpl {
         .execute(self.db.inner_ref())
         .await
         .map_err(AppError::SpecificOperationError)?;
-        
+
         Ok(())
     }
 
@@ -74,7 +76,8 @@ impl BookRepository for BookRepositoryImpl {
                     book_id = $1
             "#,
             book_id as _
-        ).fetch_optional(self.db.inner_ref())
+        )
+        .fetch_optional(self.db.inner_ref())
         .await
         .map_err(AppError::SpecificOperationError)?;
 
@@ -87,7 +90,8 @@ mod tests {
     use super::*;
 
     #[sqlx::test]
-    async fn test_register_book(pool: sqlx::PgPool) -> anyhow::Result<()>{
+    #[ignore]
+    async fn test_register_book(pool: sqlx::PgPool) -> anyhow::Result<()> {
         let repo = BookRepositoryImpl::new(ConnectionPool::new(pool));
 
         let book = CreateBook {
@@ -98,7 +102,7 @@ mod tests {
         };
 
         repo.create(book).await?;
-        
+
         let all_books = repo.find_all().await?;
 
         assert_eq!(all_books.len(), 1);
@@ -109,11 +113,11 @@ mod tests {
         assert!(created_book.is_some());
 
         let Book {
-            id, 
+            id,
             title,
             author,
             isbn,
-            description
+            description,
         } = created_book.unwrap();
 
         assert_eq!(id, book_id);

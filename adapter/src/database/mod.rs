@@ -3,15 +3,13 @@ use sqlx::{postgres::PgConnectOptions, PgPool};
 
 pub mod book;
 
-
 fn make_pg_connect_options(cfg: &DatabaseConfig) -> PgConnectOptions {
     PgConnectOptions::new()
-    .host(&cfg.host)
-    .port(cfg.port)
-    .username(&cfg.username)
-    .password(&cfg.password)
-    .database(&cfg.database)
-
+        .host(&cfg.host)
+        .port(cfg.port)
+        .username(&cfg.username)
+        .password(&cfg.password)
+        .database(&cfg.database)
 }
 
 #[derive(Clone)]
