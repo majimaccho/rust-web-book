@@ -1,7 +1,6 @@
 use std::env;
 use strum::EnumString;
 
-
 #[derive(Default, EnumString)]
 #[strum(serialize_all = "lowercase")]
 pub enum Environment {

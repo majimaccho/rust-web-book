@@ -1,9 +1,8 @@
-use axum::{extract::{Path, State}, http::StatusCode, response::{IntoResponse, Response}, Json};
-use kernel::model::book::{event::CreateBook, Book};
+use axum::{extract::{Path, State}, http::StatusCode, Json};
+use kernel::{id::BookId, model::book::{event::CreateBook, Book}};
 use registry::AppRegistry;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use uuid::Uuid;
+use shared::error::AppError;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,7 +24,7 @@ impl From<CreateBookRequest> for CreateBook {
 #[derive(Debug, Serialize)]
 #[serde(rename_all= "camelCase")]
 pub struct BookResponse {
-    pub id: Uuid,
+    pub id: BookId,
     pub title: String,
     pub author: String,
     pub isbn: String,
@@ -36,18 +35,6 @@ impl From<Book> for BookResponse {
     fn from(value: Book) -> Self {
         let Book { id, title, author, isbn, description } = value;
         Self { id, title, author, isbn, description }
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum AppError {
-    #[error("{0}")]
-    InternalError(#[from] anyhow::Error),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, "").into_response()       
     }
 }
 
@@ -76,7 +63,7 @@ pub  async  fn show_book_list(
 }
 
 pub async fn show_book(
-    Path(book_id): Path<Uuid>,
+    Path(book_id): Path<BookId>,
     State(registry): State<AppRegistry>,
 ) -> Result<Json<BookResponse>, AppError> {
     registry
@@ -85,7 +72,7 @@ pub async fn show_book(
         .await
         .and_then(|bc| match bc {
             Some(bc)=> Ok(Json(bc.into())),
-            None => Err(anyhow::anyhow!("The specific book was not found")),
+            None => Err(AppError::EntityNotFound("The specific book was not found".into())),
         })
         .map_err(AppError::from)
 }
