@@ -1,22 +1,29 @@
-use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    Json,
-};
+use derive_new::new;
+use garde::Validate;
 use kernel::{
-    id::BookId,
-    model::book::{event::CreateBook, Book},
+    id::{BookId, UserId},
+    model::{
+        book::{
+            event::{CreateBook, UpdateBook},
+            Book, BookListOptions,
+        },
+        list::PagenatedList,
+    },
 };
-use registry::AppRegistry;
 use serde::{Deserialize, Serialize};
-use shared::error::AppError;
 
-#[derive(Debug, Deserialize)]
+use super::user::BookOwner;
+
+#[derive(Debug, Deserialize, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBookRequest {
+    #[garde(length(min = 1))]
     pub title: String,
+    #[garde(length(min = 1))]
     pub author: String,
+    #[garde(length(min = 1))]
     pub isbn: String,
+    #[garde(skip)]
     pub description: String,
 }
 
@@ -38,6 +45,67 @@ impl From<CreateBookRequest> for CreateBook {
     }
 }
 
+#[derive(Debug, Deserialize, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateBookRequest {
+    #[garde(length(min = 1))]
+    pub title: String,
+    #[garde(length(min = 1))]
+    pub author: String,
+    #[garde(length(min = 1))]
+    pub isbn: String,
+    #[garde(skip)]
+    pub description: String,
+}
+
+#[derive(new)]
+pub struct UpdateBookRequestWithIds(BookId, UserId, UpdateBookRequest);
+
+impl From<UpdateBookRequestWithIds> for UpdateBook {
+    fn from(value: UpdateBookRequestWithIds) -> Self {
+        let UpdateBookRequestWithIds(
+            book_id,
+            user_id,
+            UpdateBookRequest {
+                title,
+                author,
+                isbn,
+                description,
+            },
+        ) = value;
+        Self {
+            title,
+            author,
+            isbn,
+            description,
+            book_id,
+            requested_user: user_id,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct BookListQuery {
+    #[garde(range(min = 0))]
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[garde(range(min = 0))]
+    #[serde(default)]
+    pub offset: i64,
+}
+
+const DEFAULT_LIMIT: i64 = 20;
+const fn default_limit() -> i64 {
+    DEFAULT_LIMIT
+}
+
+impl From<BookListQuery> for BookListOptions {
+    fn from(value: BookListQuery) -> Self {
+        let BookListQuery { limit, offset } = value;
+        Self { limit, offset }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookResponse {
@@ -46,6 +114,7 @@ pub struct BookResponse {
     pub author: String,
     pub isbn: String,
     pub description: String,
+    pub owner: BookOwner,
 }
 
 impl From<Book> for BookResponse {
@@ -56,6 +125,7 @@ impl From<Book> for BookResponse {
             author,
             isbn,
             description,
+            owner,
         } = value;
         Self {
             id,
@@ -63,47 +133,33 @@ impl From<Book> for BookResponse {
             author,
             isbn,
             description,
+            owner: owner.into(),
         }
     }
 }
 
-pub async fn register_book(
-    State(registry): State<AppRegistry>,
-    Json(req): Json<CreateBookRequest>,
-) -> Result<StatusCode, AppError> {
-    registry
-        .book_repository()
-        .create(req.into())
-        .await
-        .map(|_| StatusCode::CREATED)
-        .map_err(AppError::from)
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PagenatedookResponse {
+    pub total: i64,
+    pub limit: i64,
+    pub offset: i64,
+    pub items: Vec<BookResponse>,
 }
 
-pub async fn show_book_list(
-    State(registry): State<AppRegistry>,
-) -> Result<Json<Vec<BookResponse>>, AppError> {
-    registry
-        .book_repository()
-        .find_all()
-        .await
-        .map(|v| v.into_iter().map(BookResponse::from).collect())
-        .map(Json)
-        .map_err(AppError::from)
-}
-
-pub async fn show_book(
-    Path(book_id): Path<BookId>,
-    State(registry): State<AppRegistry>,
-) -> Result<Json<BookResponse>, AppError> {
-    registry
-        .book_repository()
-        .find_by_id(book_id)
-        .await
-        .and_then(|bc| match bc {
-            Some(bc) => Ok(Json(bc.into())),
-            None => Err(AppError::EntityNotFound(
-                "The specific book was not found".into(),
-            )),
-        })
-        .map_err(AppError::from)
+impl From<PagenatedList<Book>> for PagenatedookResponse {
+    fn from(value: PagenatedList<Book>) -> Self {
+        let PagenatedList {
+            total,
+            limit,
+            offset,
+            items,
+        } = value;
+        Self {
+            total,
+            limit,
+            offset,
+            items: items.into_iter().map(BookResponse::from).collect(),
+        }
+    }
 }

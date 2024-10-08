@@ -1,14 +1,23 @@
 use async_trait::async_trait;
 use derive_new::new;
 use kernel::{
-    id::BookId,
-    model::book::{event::CreateBook, Book},
+    id::{BookId, UserId},
+    model::{
+        book::{
+            event::{CreateBook, DeleteBook, UpdateBook},
+            Book, BookListOptions,
+        },
+        list::PagenatedList,
+    },
     repository::book::BookRepository,
 };
 use shared::error::{AppError, AppResult};
 use sqlx;
 
-use crate::database::{book::BookRow, ConnectionPool};
+use crate::database::{
+    book::{BookRow, PaginatedBookRow},
+    ConnectionPool,
+};
 
 #[derive(new)]
 pub struct BookRepositoryImpl {
@@ -17,18 +26,19 @@ pub struct BookRepositoryImpl {
 
 #[async_trait]
 impl BookRepository for BookRepositoryImpl {
-    async fn create(&self, event: CreateBook) -> AppResult<()> {
+    async fn create(&self, event: CreateBook, user_id: UserId) -> AppResult<()> {
         sqlx::query!(
             r#"
                 INSERT INTO
-                    books (title, author, isbn, description)
+                    books (title, author, isbn, description, user_id)
                 VALUES
-                    ($1, $2, $3, $4)
+                    ($1, $2, $3, $4, $5)
             "#,
             event.title,
             event.author,
             event.isbn,
-            event.description
+            event.description,
+            user_id as _,
         )
         .execute(self.db.inner_ref())
         .await
@@ -37,43 +47,79 @@ impl BookRepository for BookRepositoryImpl {
         Ok(())
     }
 
-    async fn find_all(&self) -> AppResult<Vec<Book>> {
-        let rows: Vec<BookRow> = sqlx::query_as!(
-            BookRow,
+    async fn find_all(&self, options: BookListOptions) -> AppResult<PagenatedList<Book>> {
+        let BookListOptions { limit, offset } = options;
+        let rows: Vec<PaginatedBookRow> = sqlx::query_as!(
+            PaginatedBookRow,
             r#"
                 SELECT
-                    book_id,
-                    title,
-                    author,
-                    isbn,
-                    description
+                    COUNT(*) OVER() AS "total!",
+                    book_id as id
                 FROM
-                    books
+                    books as b
                 ORDER BY
-                    created_at DESC 
-            "#
+                    b.created_at DESC 
+                LIMIT $1 
+                OFFSET $2
+            "#,
+            limit,
+            offset,
         )
         .fetch_all(self.db.inner_ref())
         .await
         .map_err(AppError::SpecificOperationError)?;
 
-        Ok(rows.into_iter().map(Book::from).collect())
+        let total = rows.first().map(|r| r.total).unwrap_or_default();
+        let book_ids = rows.into_iter().map(|r| r.id).collect::<Vec<BookId>>();
+
+        let rows: Vec<BookRow> = sqlx::query_as!(
+            BookRow,
+            r#"
+                SELECT 
+                    b.book_id as book_id,
+                    b.title as title,
+                    b.author as author,
+                    b.isbn as isbn,
+                    b.description as description,
+                    u.user_id as owned_by,
+                    u.name as owner_name
+                FROM 
+                    books as b
+                INNER JOIN users AS u USING(user_id)
+                WHERE b.book_id IN (SELECT * FROM UNNEST($1::uuid[]))
+                ORDER BY b.created_at DESC;
+            "#,
+            book_ids as _
+        )
+        .fetch_all(self.db.inner_ref())
+        .await
+        .map_err(AppError::SpecificOperationError)?;
+
+        let items = rows.into_iter().map(Book::from).collect();
+        Ok(PagenatedList {
+            total,
+            limit,
+            offset,
+            items,
+        })
     }
 
     async fn find_by_id(&self, book_id: BookId) -> AppResult<Option<Book>> {
         let row: Option<BookRow> = sqlx::query_as!(
             BookRow,
             r#"
-                SELECT
-                    book_id,
-                    title,
-                    author,
-                    isbn,
-                    description
-                FROM
-                    books
-                WHERE
-                    book_id = $1
+                SELECT 
+                    b.book_id as book_id,
+                    b.title as title,
+                    b.author as author,
+                    b.isbn as isbn,
+                    b.description as description,
+                    u.user_id as owned_by,
+                    u.name as owner_name
+                FROM 
+                    books as b
+                INNER JOIN users AS u USING(user_id)
+                WHERE b.book_id = $1
             "#,
             book_id as _
         )
@@ -83,16 +129,82 @@ impl BookRepository for BookRepositoryImpl {
 
         Ok(row.map(Book::from))
     }
+
+    async fn update(&self, event: UpdateBook) -> AppResult<()> {
+        let res = sqlx::query!(
+            r#"
+                UPDATE books
+                SET 
+                    title = $1, 
+                    author = $2,
+                    isbn = $3,
+                    description = $4
+                WHERE book_id = $5
+                AND   user_id = $6
+            "#,
+            event.title,
+            event.author,
+            event.isbn,
+            event.description,
+            event.book_id as _,
+            event.requested_user as _,
+        )
+        .execute(self.db.inner_ref())
+        .await
+        .map_err(AppError::SpecificOperationError)?;
+
+        if res.rows_affected() < 1 {
+            return Err(AppError::EntityNotFound("specified book not found".into()));
+        }
+
+        Ok(())
+    }
+
+    async fn delete(&self, event: DeleteBook) -> AppResult<()> {
+        let res = sqlx::query!(
+            r#"
+                DELETE FROM books
+                WHERE book_id = $1 AND user_id = $2
+            "#,
+            event.book_id as _,
+            event.requested_user as _,
+        )
+        .execute(self.db.inner_ref())
+        .await
+        .map_err(AppError::SpecificOperationError)?;
+
+        if res.rows_affected() < 1 {
+            return Err(AppError::EntityNotFound("specified book not found".into()));
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use kernel::{model::user::event::CreateUser, repository::user::UserRepository};
+
+    use crate::repository::user::UserRepositoryImpl;
+
     use super::*;
 
     #[sqlx::test]
-    #[ignore]
     async fn test_register_book(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let repo = BookRepositoryImpl::new(ConnectionPool::new(pool));
+        sqlx::query!(r#"INSERT INTO roles(name) VALUES ('Admin'), ('User');"#)
+            .execute(&pool)
+            .await?;
+
+        let user_repo = UserRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let repo = BookRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+
+        let user = user_repo
+            .create(CreateUser {
+                name: "Test User".into(),
+                email: "test@example.com".into(),
+                password: "test_password".into(),
+            })
+            .await?;
 
         let book = CreateBook {
             title: "Test Title".into(),
@@ -101,13 +213,18 @@ mod tests {
             description: "Test Descrption".into(),
         };
 
-        repo.create(book).await?;
+        repo.create(book, user.id).await?;
 
-        let all_books = repo.find_all().await?;
+        let options = BookListOptions {
+            limit: 20,
+            offset: 0,
+        };
 
-        assert_eq!(all_books.len(), 1);
+        let res = repo.find_all(options).await?;
 
-        let book_id = all_books[0].id;
+        assert_eq!(res.items.len(), 1);
+
+        let book_id = res.items[0].id;
 
         let created_book = repo.find_by_id(book_id).await?;
         assert!(created_book.is_some());
@@ -118,6 +235,7 @@ mod tests {
             author,
             isbn,
             description,
+            owner,
         } = created_book.unwrap();
 
         assert_eq!(id, book_id);
@@ -125,7 +243,7 @@ mod tests {
         assert_eq!(author, "Test Author");
         assert_eq!(isbn, "Test ISBN");
         assert_eq!(description, "Test Descrption");
-
+        assert_eq!(owner.name, "Test User");
         Ok(())
     }
 }

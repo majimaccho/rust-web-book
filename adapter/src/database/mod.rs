@@ -1,7 +1,12 @@
-use shared::config::DatabaseConfig;
+use shared::{
+    config::DatabaseConfig,
+    error::{AppError, AppResult},
+};
 use sqlx::{postgres::PgConnectOptions, PgPool};
 
+pub mod auth;
 pub mod book;
+pub mod user;
 
 fn make_pg_connect_options(cfg: &DatabaseConfig) -> PgConnectOptions {
     PgConnectOptions::new()
@@ -21,6 +26,10 @@ impl ConnectionPool {
     }
     pub fn inner_ref(&self) -> &PgPool {
         &self.0
+    }
+
+    pub async fn begin(&self) -> AppResult<sqlx::Transaction<'_, sqlx::Postgres>> {
+        self.0.begin().await.map_err(AppError::TransacionError)
     }
 }
 

@@ -1,5 +1,7 @@
 use crate::id::BookId;
 
+use super::user::BookOwner;
+
 pub mod event;
 
 #[derive(Debug)]
@@ -9,4 +11,11 @@ pub struct Book {
     pub author: String,
     pub isbn: String,
     pub description: String,
+    pub owner: BookOwner,
+}
+
+#[derive(Debug)]
+pub struct BookListOptions {
+    pub limit: i64,
+    pub offset: i64,
 }

@@ -2,10 +2,15 @@ use anyhow::Result;
 
 pub struct AppConfig {
     pub database: DatabaseConfig,
+    pub redis: RedisConfig,
+    pub auth: AuthConfig,
 }
 
 impl AppConfig {
     pub fn new() -> Result<Self> {
+        let auth = AuthConfig {
+            ttl: std::env::var("AUTH_TOKEN_TTL")?.parse::<u64>()?,
+        };
         let database = DatabaseConfig {
             host: std::env::var("DATABASE_HOST")?,
             port: std::env::var("DATABASE_PORT")?.parse()?,
@@ -14,7 +19,16 @@ impl AppConfig {
             database: std::env::var("DATABASE_NAME")?,
         };
 
-        Ok(Self { database })
+        let redis = RedisConfig {
+            host: std::env::var("REDIS_HOST")?,
+            port: std::env::var("REDIS_PORT")?.parse::<u16>()?,
+        };
+
+        Ok(Self {
+            auth,
+            database,
+            redis,
+        })
     }
 }
 
@@ -29,4 +43,8 @@ pub struct DatabaseConfig {
 pub struct RedisConfig {
     pub host: String,
     pub port: u16,
+}
+
+pub struct AuthConfig {
+    pub ttl: u64,
 }
